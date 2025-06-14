@@ -1,0 +1,32 @@
+# Terraform files
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars.sig
+*.hcl.auto.tfvars
+.terraformrc
+terraform.rc
+
+# Local .terraformignore files
+.terraformignore
+
+# Provider-specific files
+.terraform-history
+
+# VS Code
+.vscode/
+
+# IDE specific files (e.g., IntelliJ, PyCharm, etc.)
+.idea/
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment variables
+.env
