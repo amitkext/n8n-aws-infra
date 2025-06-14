@@ -1,19 +1,31 @@
-name: Terraform AWS Deploy
+name: Deploy n8n Infrastructure
 
 on:
   push:
     branches:
-      - main # Or your main development branch
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch: # Allows manual trigger
 
 env:
-  TF_VAR_aws_region: us-east-1 # Default AWS region, override in steps if needed
-  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  AWS_REGION: us-east-1 # Make sure this matches your provider.tf and variables.tf default
 
 jobs:
   terraform:
-    name: "Terraform Apply"
+    name: "Terraform Plan & Apply"
     runs-on: ubuntu-latest
+    env:
+      TF_VAR_domain_name: ${{ secrets.TF_VAR_DOMAIN_NAME }}
+      TF_VAR_root_domain: ${{ secrets.TF_VAR_ROOT_DOMAIN }}
+      TF_VAR_n8n_encryption_key: ${{ secrets.TF_VAR_N8N_ENCRYPTION_KEY }}
+      TF_VAR_n8n_basic_auth_user: ${{ secrets.TF_VAR_N8N_BASIC_AUTH_USER }}
+      TF_VAR_n8n_basic_auth_password: ${{ secrets.TF_VAR_N8N_BASIC_AUTH_PASSWORD }}
+      TF_VAR_db_password: ${{ secrets.TF_VAR_DB_PASSWORD }}
+      TF_VAR_redis_password: ${{ secrets.TF_VAR_REDIS_PASSWORD }}
+      TF_VAR_acm_certificate_id: ${{ secrets.TF_VAR_ACM_CERTIFICATE_ID }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -21,7 +33,14 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.x.x # Specify your desired Terraform version
+          terraform_version: 1.x # Or a specific version like '1.7.0'
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform Init
         id: init
@@ -31,10 +50,18 @@ jobs:
         id: fmt
         run: terraform fmt -check
 
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+
       - name: Terraform Plan
         id: plan
+        if: github.event_name == 'pull_request'
         run: terraform plan -no-color
+        continue-on-error: true # Allow plan to fail if there are issues, but don't stop workflow
+        # Add output for plan to PR comment (requires additional action)
 
       - name: Terraform Apply
-        if: github.ref == 'refs/heads/main' # Only apply on main branch pushes
+        id: apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: terraform apply -auto-approve
